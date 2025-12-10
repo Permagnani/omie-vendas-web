@@ -10,85 +10,101 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-/**
- * Converte data da Omie no formato dd/mm/aaaa para yyyy-mm-dd
- * para manter compatível com o front (new Date(...)).
- */
-function brToIso(dateStr) {
+// Converte yyyy-mm-dd -> dd/mm/yyyy
+function isoToBr(dateStr) {
   if (!dateStr) return '';
-  const [dia, mes, ano] = dateStr.split('/');
-  if (!dia || !mes || !ano) return dateStr;
-  return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+  const [ano, mes, dia] = dateStr.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+// Converte Date para yyyy-mm-dd
+function dateToIso(d) {
+  const ano = d.getFullYear();
+  const mes = String(d.getMonth() + 1).padStart(2, '0');
+  const dia = String(d.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
 }
 
 /**
- * Rota de vendas: busca NF-e na Omie (NFConsultar / ListarNF)
- * filtrando apenas notas de SAÍDA, ambiente de produção
- * e ignorando notas com valor 0.
+ * Rota /api/vendas
+ * Lê dataInicio e dataFim (yyyy-mm-dd) da query string.
+ * Se não vier nada, usa últimos 7 dias.
+ * Chama ObterResumoProdutos na Omie e devolve:
+ *  - nFaturadas
+ *  - vFaturadas
+ *  - ticketMedio
  */
 app.get('/api/vendas', async (req, res) => {
   try {
+    const { dataInicio, dataFim } = req.query;
+
+    const hoje = new Date();
+    let diIso, dfIso;
+
+    if (dataInicio && dataFim) {
+      diIso = dataInicio;
+      dfIso = dataFim;
+    } else {
+      // padrão: últimos 7 dias
+      const df = new Date(hoje);
+      const di = new Date(hoje);
+      di.setDate(di.getDate() - 6);
+      diIso = dateToIso(di);
+      dfIso = dateToIso(df);
+    }
+
+    const diBr = isoToBr(diIso); // dd/mm/aaaa para Omie
+    const dfBr = isoToBr(dfIso);
+
     const payload = {
-      call: 'ListarNF',
+      call: 'ObterResumoProdutos',
       app_key: process.env.OMIE_APP_KEY,
       app_secret: process.env.OMIE_APP_SECRET,
       param: [
         {
-          pagina: 1,
-          registros_por_pagina: 100,
-          apenas_importado_api: 'N',
-          tpNF: '1',          // 1 = saída (venda)
-          tpAmb: '1',         // 1 = produção
-          cApenasResumo: 'S', // só o resumo da NF
-          // se quiser limitar por período depois:
-          // dEmiInicial: '01/01/2025',
-          // dEmiFinal:   '31/12/2025',
+          dDataInicio: diBr,
+          dDataFim: dfBr,
+          lApenasResumo: true,
         },
       ],
     };
 
     const { data } = await axios.post(
-      'https://app.omie.com.br/api/v1/produtos/nfconsultar/',
+      'https://app.omie.com.br/api/v1/produtos/vendas-resumo/',
       payload
     );
 
-    const registros = data.nfCadastro || [];
+    const fr = data.faturamentoResumo || {};
 
-    let vendas = registros.map((nf, index) => {
-      const ide = nf.ide || {};
-      const dest = nf.nfDestInt || {};
-      const total = nf.total || {};
+    const nFaturadas = fr.nFaturadas || 0;
+    const vFaturadasNum = Number(fr.vFaturadas || 0);
+    const ticketMedio =
+      nFaturadas > 0 ? vFaturadasNum / nFaturadas : 0;
 
-      const emissao = ide.dEmi || '';
-      const rawValor = total.vNF ?? 0;
-
-      const valorNumero = Number(
-        rawValor.toString().replace('.', '').replace(',', '.')
-      );
-
-      return {
-        id: (nf.compl && nf.compl.nIdNF) || index + 1,
-        data: emissao.includes('/') ? brToIso(emissao) : emissao,
-        cliente: dest.cRazao || 'N/A',
-        documento: ide.nNF || '',
-        valorTotal: isNaN(valorNumero) ? 0 : valorNumero,
-        status: ide.finNFe || 'N/D',
-      };
+    res.json({
+      dataInicioIso: diIso,
+      dataFimIso: dfIso,
+      dataInicioBr: diBr,
+      dataFimBr: dfBr,
+      nFaturadas,
+      vFaturadas: vFaturadasNum,
+      ticketMedio,
+      bruto: fr, // se quiser inspecionar depois
     });
-
-    // Mantém apenas notas com valor > 0
-    vendas = vendas.filter((v) => v.valorTotal > 0);
-
-    res.json(vendas);
   } catch (error) {
     console.error('Erro Omie:');
     if (error.response) {
       console.error('Status:', error.response.status);
-      console.error('Dados:', JSON.stringify(error.response.data, null, 2));
+      console.error(
+        'Dados:',
+        JSON.stringify(error.response.data, null, 2)
+      );
     } else {
       console.error('Mensagem:', error.message);
     }
-    res.status(500).json({ error: 'Erro ao consultar NF-e na Omie' });
+    res
+      .status(500)
+      .json({ error: 'Erro ao consultar resumo de vendas na Omie' });
   }
 });
 
@@ -96,4 +112,3 @@ app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
   console.log(`Acesse: http://localhost:${PORT}/api/vendas`);
 });
-
