@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Painel de Vendas</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>Painel de Vendas</h1>
+  </header>
+
+  <main class="container">
+    <section class="filtros">
+      <div>
+        <label for="dataInicio">Data início:</label>
+        <input type="date" id="dataInicio" />
+      </div>
+      <div>
+        <label for="dataFim">Data fim:</label>
+        <input type="date" id="dataFim" />
+      </div>
+      <button id="btnFiltrar">Filtrar</button>
+
+      <div class="atalhos">
+        <button data-range="hoje">Hoje</button>
+        <button data-range="7dias">Últimos 7 dias</button>
+        <button data-range="mes">Mês atual</button>
+      </div>
+    </section>
+
+    <section class="resumo">
+      <div class="card">
+        <span class="label">Total Faturado</span>
+        <span class="valor" id="totalFaturado">R$ 0,00</span>
+      </div>
+      <div class="card">
+        <span class="label">Qtde de Vendas</span>
+        <span class="valor" id="qtdeVendas">0</span>
+      </div>
+      <div class="card">
+        <span class="label">Ticket Médio</span>
+        <span class="valor" id="ticketMedio">R$ 0,00</span>
+      </div>
+    </section>
+
+    <section class="tabela-vendas">
+      <table>
+        <thead>
+          <tr>
+            <th>Data</th>
+            <th>Documento</th>
+            <th>Cliente</th>
+            <th>Status</th>
+            <th>Valor Total</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyVendas">
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
