@@ -3,6 +3,7 @@
 const API_URL = 'https://omie-vendas-web-production.up.railway.app/api/vendas';
 
 
+
 function formatMoney(valor) {
   return `R$ ${valor.toFixed(2).replace('.', ',')}`;
 }

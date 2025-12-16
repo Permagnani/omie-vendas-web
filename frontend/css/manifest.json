@@ -1,0 +1,13 @@
+{
+  "name": "Cana Mania",
+  "short_name": "CanaMania",
+  "start_url": "./",
+  "display": "standalone",
+  "icons": [
+    {
+      "src": "favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
