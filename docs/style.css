@@ -9,12 +9,6 @@ body {
   color: #333;
 }
 
-.topbar {
-  background: #111827;
-  color: #fff;
-  padding: 16px;
-  text-align: center;
-}
 
 .container {
   max-width: 1100px;
@@ -244,4 +238,38 @@ body {
   0% { transform: translateY(-50%) scale(1.0); }
   45% { transform: translateY(-50%) scale(1.08); }
   100% { transform: translateY(-50%) scale(1.02); }
+}
+
+.topbar{
+  position: relative;
+  height: 180px;                 /* ajuste a altura se quiser */
+  width: 100%;
+  display: flex;
+  align-items: flex-end;         /* título embaixo */
+  justify-content: center;
+  padding: 14px 16px;
+  overflow: hidden;
+
+  background-image: url("./assets/header/banner.jpg"); /* seu arquivo */
+  background-size: contain;      /* NÃO corta */
+  background-position: center;
+  background-repeat: no-repeat;
+
+  background-color: #111827;     /* “moldura” atrás (caso sobre espaço) */
+}
+
+.topbar{
+  height: 180px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background-image: url("./assets/header/banner.jpg");
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+
+  /* preenche as laterais com magenta (ou gradiente) */
+  background-color: #d61b75; /* ajuste para o magenta do seu banner */
 }
