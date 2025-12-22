@@ -10,63 +10,34 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Converte yyyy-mm-dd -> dd/mm/yyyy
+// ===== UTIL =====
 function isoToBr(dateStr) {
   if (!dateStr) return '';
   const [ano, mes, dia] = dateStr.split('-');
   return `${dia}/${mes}/${ano}`;
 }
-
-// Converte Date para yyyy-mm-dd
 function dateToIso(d) {
-  const ano = d.getFullYear();
-  const mes = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
-/**
- * Rota /api/vendas
- * Lê dataInicio e dataFim (yyyy-mm-dd) da query string.
- * Se não vier nada, usa últimos 7 dias.
- * Chama ObterResumoProdutos na Omie e devolve:
- *  - nFaturadas
- *  - vFaturadas
- *  - ticketMedio
- */
+// ===== OMIE /api/vendas =====
 app.get('/api/vendas', async (req, res) => {
   try {
     const { dataInicio, dataFim } = req.query;
-
     const hoje = new Date();
-    let diIso, dfIso;
 
-    if (dataInicio && dataFim) {
-      diIso = dataInicio;
-      dfIso = dataFim;
-    } else {
-      // padrão: últimos 7 dias
-      const df = new Date(hoje);
-      const di = new Date(hoje);
-      di.setDate(di.getDate() - 6);
-      diIso = dateToIso(di);
-      dfIso = dateToIso(df);
-    }
-
-    const diBr = isoToBr(diIso); // dd/mm/aaaa para Omie
-    const dfBr = isoToBr(dfIso);
+    const diIso = dataInicio || dateToIso(new Date(hoje.setDate(hoje.getDate()-6)));
+    const dfIso = dataFim || dateToIso(new Date());
 
     const payload = {
       call: 'ObterResumoProdutos',
       app_key: process.env.OMIE_APP_KEY,
       app_secret: process.env.OMIE_APP_SECRET,
-      param: [
-        {
-          dDataInicio: diBr,
-          dDataFim: dfBr,
-          lApenasResumo: true,
-        },
-      ],
+      param: [{
+        dDataInicio: isoToBr(diIso),
+        dDataFim: isoToBr(dfIso),
+        lApenasResumo: true
+      }]
     };
 
     const { data } = await axios.post(
@@ -75,40 +46,51 @@ app.get('/api/vendas', async (req, res) => {
     );
 
     const fr = data.faturamentoResumo || {};
-
-    const nFaturadas = fr.nFaturadas || 0;
-    const vFaturadasNum = Number(fr.vFaturadas || 0);
-    const ticketMedio =
-      nFaturadas > 0 ? vFaturadasNum / nFaturadas : 0;
+    const nFaturadas = Number(fr.nFaturadas || 0);
+    const vFaturadas = Number(fr.vFaturadas || 0);
+    const ticketMedio = nFaturadas ? vFaturadas / nFaturadas : 0;
 
     res.json({
       dataInicioIso: diIso,
       dataFimIso: dfIso,
-      dataInicioBr: diBr,
-      dataFimBr: dfBr,
       nFaturadas,
-      vFaturadas: vFaturadasNum,
-      ticketMedio,
-      bruto: fr, // se quiser inspecionar depois
+      vFaturadas,
+      ticketMedio
     });
-  } catch (error) {
-    console.error('Erro Omie:');
-    if (error.response) {
-      console.error('Status:', error.response.status);
-      console.error(
-        'Dados:',
-        JSON.stringify(error.response.data, null, 2)
-      );
-    } else {
-      console.error('Mensagem:', error.message);
-    }
-    res
-      .status(500)
-      .json({ error: 'Erro ao consultar resumo de vendas na Omie' });
+  } catch (e) {
+    res.status(500).json({ error: 'Erro Omie' });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
-  console.log(`Acesse: http://localhost:${PORT}/api/vendas`);
+// ===== SUPABASE /api/metas =====
+app.get('/api/metas', async (req, res) => {
+  try {
+    const mes = req.query.mes;
+
+    const { data } = await axios.get(
+      `${process.env.SUPABASE_URL}/rest/v1/metas?select=
+        id,titulo,tipo,
+        meta_resultados(
+          mes,
+          meta_result_componentes(
+            metrica,alvo,realizado,percentual,faltou
+          )
+        )
+      &meta_resultados.mes=eq.${mes}`,
+      {
+        headers: {
+          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+        }
+      }
+    );
+
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: 'Erro Supabase' });
+  }
 });
+
+app.listen(PORT, () =>
+  console.log(`API rodando: http://localhost:${PORT}`)
+);

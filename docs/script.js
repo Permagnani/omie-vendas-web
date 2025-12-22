@@ -1,117 +1,85 @@
-// frontend???/script.js
+const API_VENDAS = 'https://omie-vendas-web-production.up.railway.app/api/vendas';
+const API_METAS = 'https://omie-vendas-web-production.up.railway.app/api/metas';
 
-const API_URL = 'https://omie-vendas-web-production.up.railway.app/api/vendas';
-
-
-
-function formatMoney(valor) {
-  return `R$ ${valor.toFixed(2).replace('.', ',')}`;
+// ===== UTIL =====
+function formatMoney(v) {
+  return `R$ ${Number(v).toFixed(2).replace('.', ',')}`;
 }
 
+// ===== RESUMO OMIE =====
 async function carregarResumo() {
-  try {
-    const dataInicio = document.getElementById('dataInicio').value;
-    const dataFim = document.getElementById('dataFim').value;
+  const di = dataInicio.value;
+  const df = dataFim.value;
 
-    const params = new URLSearchParams();
-    if (dataInicio) params.append('dataInicio', dataInicio);
-    if (dataFim) params.append('dataFim', dataFim);
+  const qs = di && df ? `?dataInicio=${di}&dataFim=${df}` : '';
+  const r = await fetch(API_VENDAS + qs);
+  const d = await r.json();
 
-    const url =
-      params.toString().length > 0
-        ? `${API_URL}?${params.toString()}`
-        : API_URL;
-
-    const resp = await fetch(url);
-    const resumo = await resp.json();
-
-    console.log('Resumo recebido da API:', resumo);
-
-    atualizarResumo(resumo);
-    atualizarTabela(resumo);
-  } catch (err) {
-    console.error('Erro ao carregar resumo:', err);
-  }
+  totalFaturado.textContent = formatMoney(d.vFaturadas);
+  qtdeVendas.textContent = d.nFaturadas;
+  ticketMedio.textContent = formatMoney(d.ticketMedio);
 }
 
-function atualizarResumo(resumo) {
-  const totalFaturadoElem = document.getElementById('totalFaturado');
-  const qtdeVendasElem = document.getElementById('qtdeVendas');
-  const ticketMedioElem = document.getElementById('ticketMedio');
+// ===== METAS =====
+async function carregarMetas() {
+  const hoje = new Date();
+  const mes = `${hoje.getFullYear()}-${String(hoje.getMonth()+1).padStart(2,'0')}`;
 
-  const total = Number(resumo.vFaturadas || 0);
-  const qtde = Number(resumo.nFaturadas || 0);
-  const ticket = Number(resumo.ticketMedio || 0);
+  const r = await fetch(`${API_METAS}?mes=${mes}`);
+  const metas = await r.json();
 
-  totalFaturadoElem.textContent = formatMoney(total);
-  qtdeVendasElem.textContent = qtde;
-  ticketMedioElem.textContent = formatMoney(ticket);
+  metas.slice(0,4).forEach((m,i)=>{
+    const c = m.meta_resultados[0]?.meta_result_componentes[0];
+    if(!c) return;
+
+    const idx = i+1;
+    const pct = Math.min(Number(c.percentual||0),100);
+
+    document.getElementById(`meta${idx}Title`).textContent = m.titulo;
+    document.getElementById(`meta${idx}Sub`).textContent = c.metrica;
+
+    document.getElementById(`meta${idx}Atual`).textContent =
+      m.tipo === 'proporcao' ? `${c.realizado}%`
+      : m.tipo === 'faturamento' ? formatMoney(c.realizado)
+      : c.realizado;
+
+    document.getElementById(`meta${idx}Total`).textContent =
+      m.tipo === 'proporcao' ? `${c.alvo}%`
+      : m.tipo === 'faturamento' ? formatMoney(c.alvo)
+      : c.alvo;
+
+    document.getElementById(`meta${idx}Fill`).style.width = `${pct}%`;
+    document.getElementById(`meta${idx}Percent`).textContent = `${Math.round(pct)}%`;
+
+    document.getElementById(`meta${idx}Falta`).textContent =
+      m.tipo === 'proporcao' ? `Faltam ${c.faltou}%`
+      : m.tipo === 'faturamento' ? `Faltam ${formatMoney(c.faltou)}`
+      : `Faltam ${c.faltou}`;
+  });
 }
 
-// Por enquanto a tabela mostra só uma linha agregada do período
-function atualizarTabela(resumo) {
-  const tbody = document.getElementById('tbodyVendas');
-  tbody.innerHTML = '';
-
-  const tr = document.createElement('tr');
-
-  const periodo =
-    (resumo.dataInicioBr || '') +
-    ' a ' +
-    (resumo.dataFimBr || '');
-
-  tr.innerHTML = `
-    <td>${periodo}</td>
-    <td>-</td>
-    <td>-</td>
-    <td>Faturado</td>
-    <td>${formatMoney(Number(resumo.vFaturadas || 0))}</td>
-  `;
-
-  tbody.appendChild(tr);
-}
-
+// ===== FILTROS =====
 function aplicarAtalho(tipo) {
   const hoje = new Date();
   let di, df;
 
-  if (tipo === 'hoje') {
-    di = new Date(hoje);
-    df = new Date(hoje);
-  } else if (tipo === '7dias') {
-    df = new Date(hoje);
-    di = new Date(hoje);
-    di.setDate(di.getDate() - 6);
-  } else if (tipo === 'mes') {
-    di = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    df = new Date(hoje);
-  } else {
-    di = new Date(hoje);
-    df = new Date(hoje);
-  }
+  if (tipo === 'hoje') di = df = hoje;
+  if (tipo === '7dias') { df = hoje; di = new Date(); di.setDate(di.getDate()-6); }
+  if (tipo === 'mes') { di = new Date(hoje.getFullYear(), hoje.getMonth(), 1); df = hoje; }
 
-  const toIso = (d) => d.toISOString().slice(0, 10);
-
-  document.getElementById('dataInicio').value = toIso(di);
-  document.getElementById('dataFim').value = toIso(df);
+  dataInicio.value = di.toISOString().slice(0,10);
+  dataFim.value = df.toISOString().slice(0,10);
 
   carregarResumo();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  // ao abrir, já carrega últimos 7 dias
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', ()=>{
   aplicarAtalho('7dias');
+  carregarMetas();
 
-  document
-    .getElementById('btnFiltrar')
-    .addEventListener('click', carregarResumo);
-
-  document
-    .querySelectorAll('.atalhos button')
-    .forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const range = btn.getAttribute('data-range');
-        aplicarAtalho(range);
-      });
-    });
+  btnFiltrar.onclick = carregarResumo;
+  document.querySelectorAll('.atalhos button').forEach(b=>{
+    b.onclick = ()=>aplicarAtalho(b.dataset.range);
+  });
 });
