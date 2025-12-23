@@ -27,18 +27,21 @@ app.get('/api/vendas', async (req, res) => {
     const { dataInicio, dataFim } = req.query;
     const hoje = new Date();
 
-    const diIso = dataInicio || dateToIso(new Date(hoje.setDate(hoje.getDate() - 6)));
+    const diIso =
+      dataInicio || dateToIso(new Date(new Date().setDate(hoje.getDate() - 6)));
     const dfIso = dataFim || dateToIso(new Date());
 
     const payload = {
       call: 'ObterResumoProdutos',
       app_key: process.env.OMIE_APP_KEY,
       app_secret: process.env.OMIE_APP_SECRET,
-      param: [{
-        dDataInicio: isoToBr(diIso),
-        dDataFim: isoToBr(dfIso),
-        lApenasResumo: true
-      }]
+      param: [
+        {
+          dDataInicio: isoToBr(diIso),
+          dDataFim: isoToBr(dfIso),
+          lApenasResumo: true,
+        },
+      ],
     };
 
     const { data } = await axios.post(
@@ -56,7 +59,7 @@ app.get('/api/vendas', async (req, res) => {
       dataFimIso: dfIso,
       nFaturadas,
       vFaturadas,
-      ticketMedio
+      ticketMedio,
     });
   } catch (e) {
     res.status(500).json({ error: 'Erro Omie' });
@@ -68,43 +71,60 @@ app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
 
-    /**
-     * SCHEMA CORRETO:
-     * meta_result_componentes
-     *  -> resultado_id -> meta_resultados.id
-     * meta_resultados
-     *  -> meta_id -> metas.id
-     */
+    const headers = {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+    };
 
-    const url =
+    // 1️⃣ Buscar resultados do mês
+    const resultadosResp = await axios.get(
+      `${process.env.SUPABASE_URL}/rest/v1/meta_resultados?select=id,mes,meta_id&mes=eq.${mes}`,
+      { headers }
+    );
+
+    const resultados = resultadosResp.data;
+    if (!resultados || resultados.length === 0) {
+      return res.json([]);
+    }
+
+    const resultadoIds = resultados.map(r => r.id);
+    const metaIds = resultados.map(r => r.meta_id);
+
+    // 2️⃣ Buscar componentes ligados aos resultados
+    const componentesResp = await axios.get(
       `${process.env.SUPABASE_URL}/rest/v1/meta_result_componentes` +
-      `?select=
-        id,
-        metrica,
-        alvo,
-        realizado,
-        percentual,
-        faltou,
-        meta_resultados(
-          id,
-          mes,
-          metas(
-            id,
-            titulo,
-            tipo
-          )
-        )
-      ` +
-      (mes ? `&meta_resultados.mes=eq.${mes}` : '');
+        `?select=id,resultado_id,metrica,alvo,realizado,percentual,faltou` +
+        `&resultado_id=in.(${resultadoIds.join(',')})`,
+      { headers }
+    );
 
-    const { data } = await axios.get(url, {
-      headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
+    // 3️⃣ Buscar metas
+    const metasResp = await axios.get(
+      `${process.env.SUPABASE_URL}/rest/v1/metas?select=id,titulo,tipo&id=in.(${metaIds.join(',')})`,
+      { headers }
+    );
+
+    const metas = metasResp.data;
+
+    // 4️⃣ Montar resposta final
+    const resposta = componentesResp.data.map(comp => {
+      const resultado = resultados.find(r => r.id === comp.resultado_id);
+      const meta = metas.find(m => m.id === resultado.meta_id);
+
+      return {
+        meta_id: meta.id,
+        titulo: meta.titulo,
+        tipo: meta.tipo,
+        mes: resultado.mes,
+        metrica: comp.metrica,
+        alvo: comp.alvo,
+        realizado: comp.realizado,
+        percentual: comp.percentual,
+        faltou: comp.faltou,
+      };
     });
 
-    res.json(data);
+    res.json(resposta);
   } catch (e) {
     res.status(500).json({
       error: 'Erro Supabase',
