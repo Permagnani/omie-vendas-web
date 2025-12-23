@@ -18,7 +18,9 @@ function isoToBr(dateStr) {
 }
 
 function dateToIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate()
+  ).padStart(2, '0')}`;
 }
 
 // ================== OMIE ==================
@@ -28,7 +30,8 @@ app.get('/api/vendas', async (req, res) => {
     const hoje = new Date();
 
     const diIso =
-      dataInicio || dateToIso(new Date(new Date().setDate(hoje.getDate() - 6)));
+      dataInicio ||
+      dateToIso(new Date(new Date().setDate(hoje.getDate() - 6)));
     const dfIso = dataFim || dateToIso(new Date());
 
     const payload = {
@@ -71,42 +74,48 @@ app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
 
+    if (!mes) {
+      return res.status(400).json({ error: 'Parâmetro mes é obrigatório' });
+    }
+
     const headers = {
       apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
       Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      'Content-Type': 'application/json',
     };
 
-    // 1️⃣ Buscar resultados do mês
+    // 1️⃣ Resultados do mês
     const resultadosResp = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/meta_resultados?select=id,mes,meta_id&mes=eq.${mes}`,
+      `${process.env.SUPABASE_URL}/rest/v1/meta_resultados` +
+        `?select=id,mes,meta_id&mes=eq.${mes}`,
       { headers }
     );
 
     const resultados = resultadosResp.data;
-    if (!resultados || resultados.length === 0) {
-      return res.json([]);
-    }
+    if (!resultados.length) return res.json([]);
 
-    const resultadoIds = resultados.map(r => r.id);
-    const metaIds = resultados.map(r => r.meta_id);
+    const resultadoIds = resultados.map(r => `"${r.id}"`).join(',');
+    const metaIds = resultados.map(r => `"${r.meta_id}"`).join(',');
 
-    // 2️⃣ Buscar componentes ligados aos resultados
+    // 2️⃣ Componentes
     const componentesResp = await axios.get(
       `${process.env.SUPABASE_URL}/rest/v1/meta_result_componentes` +
         `?select=id,resultado_id,metrica,alvo,realizado,percentual,faltou` +
-        `&resultado_id=in.(${resultadoIds.join(',')})`,
+        `&resultado_id=in.(${resultadoIds})` +
+        `&order=metrica.asc`,
       { headers }
     );
 
-    // 3️⃣ Buscar metas
+    // 3️⃣ Metas
     const metasResp = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/metas?select=id,titulo,tipo&id=in.(${metaIds.join(',')})`,
+      `${process.env.SUPABASE_URL}/rest/v1/metas` +
+        `?select=id,titulo,tipo&id=in.(${metaIds})`,
       { headers }
     );
 
     const metas = metasResp.data;
 
-    // 4️⃣ Montar resposta final
+    // 4️⃣ Montagem final
     const resposta = componentesResp.data.map(comp => {
       const resultado = resultados.find(r => r.id === comp.resultado_id);
       const meta = metas.find(m => m.id === resultado.meta_id);
