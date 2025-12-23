@@ -30,8 +30,7 @@ app.get('/api/vendas', async (req, res) => {
     const hoje = new Date();
 
     const diIso =
-      dataInicio ||
-      dateToIso(new Date(new Date().setDate(hoje.getDate() - 6)));
+      dataInicio || dateToIso(new Date(new Date().setDate(hoje.getDate() - 6)));
     const dfIso = dataFim || dateToIso(new Date());
 
     const payload = {
@@ -69,71 +68,29 @@ app.get('/api/vendas', async (req, res) => {
   }
 });
 
-// ================== SUPABASE (METAS) ==================
+// ================== METAS (SUPABASE) ==================
 app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
 
     if (!mes) {
-      return res.status(400).json({ error: 'Parâmetro mes é obrigatório' });
+      return res.status(400).json({ error: 'Parâmetro mes é obrigatório (YYYY-MM-01)' });
     }
 
-    const headers = {
-      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      'Content-Type': 'application/json',
-    };
+    const url =
+      `${process.env.SUPABASE_URL}/rest/v1/metas_mensais` +
+      `?select=mes,tipo,meta_valor,realizado,percentual,faltou` +
+      `&mes=eq.${mes}` +
+      `&order=tipo.asc`;
 
-    // 1️⃣ Resultados do mês
-    const resultadosResp = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/meta_resultados` +
-        `?select=id,mes,meta_id&mes=eq.${mes}`,
-      { headers }
-    );
-
-    const resultados = resultadosResp.data;
-    if (!resultados.length) return res.json([]);
-
-    const resultadoIds = resultados.map(r => `"${r.id}"`).join(',');
-    const metaIds = resultados.map(r => `"${r.meta_id}"`).join(',');
-
-    // 2️⃣ Componentes
-    const componentesResp = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/meta_result_componentes` +
-        `?select=id,resultado_id,metrica,alvo,realizado,percentual,faltou` +
-        `&resultado_id=in.(${resultadoIds})` +
-        `&order=metrica.asc`,
-      { headers }
-    );
-
-    // 3️⃣ Metas
-    const metasResp = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/metas` +
-        `?select=id,titulo,tipo&id=in.(${metaIds})`,
-      { headers }
-    );
-
-    const metas = metasResp.data;
-
-    // 4️⃣ Montagem final
-    const resposta = componentesResp.data.map(comp => {
-      const resultado = resultados.find(r => r.id === comp.resultado_id);
-      const meta = metas.find(m => m.id === resultado.meta_id);
-
-      return {
-        meta_id: meta.id,
-        titulo: meta.titulo,
-        tipo: meta.tipo,
-        mes: resultado.mes,
-        metrica: comp.metrica,
-        alvo: comp.alvo,
-        realizado: comp.realizado,
-        percentual: comp.percentual,
-        faltou: comp.faltou,
-      };
+    const { data } = await axios.get(url, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
     });
 
-    res.json(resposta);
+    res.json(data);
   } catch (e) {
     res.status(500).json({
       error: 'Erro Supabase',
@@ -146,3 +103,4 @@ app.get('/api/metas', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API rodando na porta ${PORT}`);
 });
+
