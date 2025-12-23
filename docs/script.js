@@ -103,7 +103,7 @@ if (tipo === 'CANA_ENREDO_PROPORCAO') {
         : meta.meta_valor;
 
     fillEl.style.width = `${pct}%`;
-    percentEl.textContent = `${pct}%`;
+    percentEl.textContent = `${pct(2)}%`;
 
     faltaEl.textContent =
       tipo === 'FATURAMENTO_TOTAL'
