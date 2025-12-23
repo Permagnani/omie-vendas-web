@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -23,7 +22,39 @@ function dateToIso(d) {
   ).padStart(2, '0')}`;
 }
 
-// ================== OMIE ==================
+// ================== OMIE (RESUMO) ==================
+async function obterFaturamentoOmie(mes) {
+  try {
+    const inicioMes = `${mes.slice(0, 7)}-01`;
+    const fim = new Date(mes);
+    fim.setMonth(fim.getMonth() + 1);
+    fim.setDate(0);
+
+    const payload = {
+      call: 'ObterResumoProdutos',
+      app_key: process.env.OMIE_APP_KEY,
+      app_secret: process.env.OMIE_APP_SECRET,
+      param: [
+        {
+          dDataInicio: isoToBr(inicioMes),
+          dDataFim: isoToBr(dateToIso(fim)),
+          lApenasResumo: true,
+        },
+      ],
+    };
+
+    const { data } = await axios.post(
+      'https://app.omie.com.br/api/v1/produtos/vendas-resumo/',
+      payload
+    );
+
+    return Number(data?.faturamentoResumo?.vFaturadas || 0);
+  } catch (e) {
+    return 0;
+  }
+}
+
+// ================== VENDAS (já existente) ==================
 app.get('/api/vendas', async (req, res) => {
   try {
     const { dataInicio, dataFim } = req.query;
@@ -68,29 +99,55 @@ app.get('/api/vendas', async (req, res) => {
   }
 });
 
-// ================== METAS (SUPABASE) ==================
+// ================== METAS (SUPABASE + FATURAMENTO OMIE) ==================
 app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
 
     if (!mes) {
-      return res.status(400).json({ error: 'Parâmetro mes é obrigatório (YYYY-MM-01)' });
+      return res
+        .status(400)
+        .json({ error: 'Parâmetro mes é obrigatório (YYYY-MM-01)' });
     }
 
+    // 1️⃣ Buscar metas no Supabase
     const url =
       `${process.env.SUPABASE_URL}/rest/v1/metas_mensais` +
       `?select=mes,tipo,meta_valor,realizado,percentual,faltou` +
       `&mes=eq.${mes}` +
       `&order=tipo.asc`;
 
-    const { data } = await axios.get(url, {
+    const { data: metas } = await axios.get(url, {
       headers: {
         apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
       },
     });
 
-    res.json(data);
+    // 2️⃣ Buscar faturamento real da Omie
+    const faturamentoRealizado = await obterFaturamentoOmie(mes);
+
+    // 3️⃣ Ajustar SOMENTE a meta de faturamento
+    const metasAjustadas = metas.map((meta) => {
+      if (meta.tipo === 'FATURAMENTO_TOTAL') {
+        const realizado = faturamentoRealizado;
+        const percentual =
+          meta.meta_valor > 0
+            ? Math.min((realizado / meta.meta_valor) * 100, 100)
+            : 0;
+
+        return {
+          ...meta,
+          realizado,
+          percentual,
+          faltou: Math.max(meta.meta_valor - realizado, 0),
+        };
+      }
+
+      return meta;
+    });
+
+    res.json(metasAjustadas);
   } catch (e) {
     res.status(500).json({
       error: 'Erro Supabase',
@@ -103,4 +160,3 @@ app.get('/api/metas', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`API rodando na porta ${PORT}`);
 });
-
