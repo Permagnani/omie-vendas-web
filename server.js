@@ -10,23 +10,24 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// ===== UTIL =====
+// ================== UTIL ==================
 function isoToBr(dateStr) {
   if (!dateStr) return '';
   const [ano, mes, dia] = dateStr.split('-');
   return `${dia}/${mes}/${ano}`;
 }
+
 function dateToIso(d) {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// ===== OMIE /api/vendas =====
+// ================== OMIE ==================
 app.get('/api/vendas', async (req, res) => {
   try {
     const { dataInicio, dataFim } = req.query;
     const hoje = new Date();
 
-    const diIso = dataInicio || dateToIso(new Date(hoje.setDate(hoje.getDate()-6)));
+    const diIso = dataInicio || dateToIso(new Date(hoje.setDate(hoje.getDate() - 6)));
     const dfIso = dataFim || dateToIso(new Date());
 
     const payload = {
@@ -62,35 +63,34 @@ app.get('/api/vendas', async (req, res) => {
   }
 });
 
-// ===== SUPABASE /api/metas =====
+// ================== SUPABASE (METAS) ==================
 app.get('/api/metas', async (req, res) => {
   try {
-    const mes = req.query.mes;
+    const { mes } = req.query;
 
-    const { data } = await axios.get(
-      `${process.env.SUPABASE_URL}/rest/v1/metas?select=
-        id,titulo,tipo,
-        meta_resultados(
-          mes,
-          meta_result_componentes(
-            metrica,alvo,realizado,percentual,faltou
-          )
-        )
-      &meta_resultados.mes=eq.${mes}`,
-      {
-        headers: {
-          apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-        }
-      }
-    );
+    // Consulta DIRETA (sem joins quebrados)
+    const url =
+      `${process.env.SUPABASE_URL}/rest/v1/meta_result_componentes` +
+      `?select=id,metrica,alvo,realizado,percentual,faltou,meta_id` +
+      (mes ? `&mes=eq.${mes}` : '');
+
+    const { data } = await axios.get(url, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
 
     res.json(data);
   } catch (e) {
-    res.status(500).json({ error: 'Erro Supabase' });
+    res.status(500).json({
+      error: 'Erro Supabase',
+      detalhe: e.response?.data || e.message
+    });
   }
 });
 
-app.listen(PORT, () =>
-  console.log(`API rodando: http://localhost:${PORT}`)
-);
+// ================== START ==================
+app.listen(PORT, () => {
+  console.log(`API rodando na porta ${PORT}`);
+});
