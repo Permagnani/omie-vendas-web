@@ -68,11 +68,34 @@ app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
 
-    // Consulta DIRETA (sem joins quebrados)
+    /**
+     * SCHEMA CORRETO:
+     * meta_result_componentes
+     *  -> resultado_id -> meta_resultados.id
+     * meta_resultados
+     *  -> meta_id -> metas.id
+     */
+
     const url =
       `${process.env.SUPABASE_URL}/rest/v1/meta_result_componentes` +
-      `?select=id,metrica,alvo,realizado,percentual,faltou,meta_id` +
-      (mes ? `&mes=eq.${mes}` : '');
+      `?select=
+        id,
+        metrica,
+        alvo,
+        realizado,
+        percentual,
+        faltou,
+        meta_resultados(
+          id,
+          mes,
+          metas(
+            id,
+            titulo,
+            tipo
+          )
+        )
+      ` +
+      (mes ? `&meta_resultados.mes=eq.${mes}` : '');
 
     const { data } = await axios.get(url, {
       headers: {
@@ -85,7 +108,7 @@ app.get('/api/metas', async (req, res) => {
   } catch (e) {
     res.status(500).json({
       error: 'Erro Supabase',
-      detalhe: e.response?.data || e.message
+      detalhe: e.response?.data || e.message,
     });
   }
 });
