@@ -1,6 +1,14 @@
 const API_VENDAS = 'https://omie-vendas-web-production.up.railway.app/api/vendas';
 const API_METAS = 'https://omie-vendas-web-production.up.railway.app/api/metas';
 
+// ===== DATA =====
+function getMesAtualISO() {
+  const hoje = new Date();
+  const ano = hoje.getFullYear();
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  return `${ano}-${mes}-01`;
+}
+
 // ===== UTIL =====
 function formatMoney(v) {
   return `R$ ${Number(v).toLocaleString('pt-BR', {
@@ -16,7 +24,7 @@ function formatarMesAno(dataIso) {
     .replace(/^\w/, c => c.toUpperCase());
 }
 
-// ===== RESUMO OMIE =====
+// ===== RESUMO =====
 async function carregarResumo() {
   const di = dataInicio.value;
   const df = dataFim.value;
@@ -32,10 +40,9 @@ async function carregarResumo() {
 
 // ===== METAS =====
 async function carregarMetas() {
-  const hoje = new Date();
-  const mes = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-01`;
+  const mesAtual = getMesAtualISO();
 
-  const r = await fetch(`${API_METAS}?mes=${mes}`);
+  const r = await fetch(`${API_METAS}?mes=${mesAtual}`);
   const metas = await r.json();
   if (!Array.isArray(metas)) return;
 
@@ -53,14 +60,12 @@ async function carregarMetas() {
     const i = index + 1;
     const pct = Math.min(Number(meta.percentual || 0), 100);
 
-    // Título
     document.getElementById(`meta${i}Title`).textContent =
       tipo.replaceAll('_', ' ').toLowerCase()
         .replace(/(^|\s)\S/g, l => l.toUpperCase());
 
     document.getElementById(`meta${i}Sub`).textContent =
-    'Meta mensal — Dezembro de 2025';
-
+      `Meta mensal — ${formatarMesAno(mesAtual)}`;
 
     const atualEl = document.getElementById(`meta${i}Atual`);
     const totalEl = document.getElementById(`meta${i}Total`);
@@ -69,27 +74,17 @@ async function carregarMetas() {
     const fillEl = document.getElementById(`meta${i}Fill`);
     const barEl = fillEl?.parentElement;
 
-   // ===== CASO ESPECIAL: PROPORÇÃO CANA ENREDO =====
-if (tipo === 'CANA_ENREDO_PROPORCAO') {
-  // Esconde barra
-  if (barEl) barEl.style.display = 'none';
+    // === PROPORÇÃO ===
+    if (tipo === 'CANA_ENREDO_PROPORCAO') {
+      if (barEl) barEl.style.display = 'none';
+      atualEl.textContent = `${meta.realizado}%`;
+      totalEl.textContent = `${meta.meta_valor}%`;
+      percentEl.style.display = 'none';
+      faltaEl.style.display = 'none';
+      return;
+    }
 
-  // Atual e Meta
-  atualEl.textContent = `${meta.realizado}%`;
-  totalEl.textContent = `${meta.meta_valor}%`;
-
-  // ESCONDER completamente o que não deve aparecer
-  percentEl.textContent = '';
-  percentEl.style.display = 'none';
-
-  faltaEl.textContent = '';
-  faltaEl.style.display = 'none';
-
-  return;
-}
-
-
-    // ===== METAS NORMAIS =====
+    // === METAS NORMAIS ===
     if (barEl) barEl.style.display = 'block';
 
     atualEl.textContent =
@@ -103,7 +98,7 @@ if (tipo === 'CANA_ENREDO_PROPORCAO') {
         : meta.meta_valor;
 
     fillEl.style.width = `${pct}%`;
-    percentEl.textContent = `${pct(2)}%`;
+    percentEl.textContent = `${pct.toFixed(2)}%`;
 
     faltaEl.textContent =
       tipo === 'FATURAMENTO_TOTAL'
@@ -130,13 +125,13 @@ function aplicarAtalho(tipo) {
 
   dataInicio.value = di.toISOString().slice(0, 10);
   dataFim.value = df.toISOString().slice(0, 10);
-
   carregarResumo();
 }
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
-  aplicarAtalho('7dias');
+  aplicarAtalho('hoje');
+  carregarResumo();
   carregarMetas();
 
   btnFiltrar.onclick = carregarResumo;
