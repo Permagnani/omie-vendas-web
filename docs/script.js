@@ -64,8 +64,8 @@ async function carregarMetas() {
       tipo.replaceAll('_', ' ').toLowerCase()
         .replace(/(^|\s)\S/g, l => l.toUpperCase());
 
-    document.getElementById(`meta${i}Sub`).textContent =
-      `Meta mensal — ${formatarMesAno(mesAtual)}`;
+    document.getElementById(`meta${i}Sub`).textContent = '';
+
 
     const atualEl = document.getElementById(`meta${i}Atual`);
     const totalEl = document.getElementById(`meta${i}Total`);
