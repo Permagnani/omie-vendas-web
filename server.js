@@ -49,12 +49,18 @@ async function obterFaturamentoOmie(mes) {
     );
 
     return Number(data?.faturamentoResumo?.vFaturadas || 0);
-  } catch (e) {
+  } catch (err) {
+    console.error('Erro Omie faturamento:', err.message);
     return 0;
   }
 }
 
-// ================== VENDAS (já existente) ==================
+// ================== HEALTH CHECK (IMPORTANTE) ==================
+app.get('/', (req, res) => {
+  res.json({ status: 'API OK' });
+});
+
+// ================== VENDAS ==================
 app.get('/api/vendas', async (req, res) => {
   try {
     const { dataInicio, dataFim } = req.query;
@@ -82,7 +88,7 @@ app.get('/api/vendas', async (req, res) => {
       payload
     );
 
-    const fr = data.faturamentoResumo || {};
+    const fr = data?.faturamentoResumo || {};
     const nFaturadas = Number(fr.nFaturadas || 0);
     const vFaturadas = Number(fr.vFaturadas || 0);
     const ticketMedio = nFaturadas ? vFaturadas / nFaturadas : 0;
@@ -94,12 +100,13 @@ app.get('/api/vendas', async (req, res) => {
       vFaturadas,
       ticketMedio,
     });
-  } catch (e) {
+  } catch (err) {
+    console.error('Erro vendas:', err.message);
     res.status(500).json({ error: 'Erro Omie' });
   }
 });
 
-// ================== METAS (SUPABASE + FATURAMENTO OMIE) ==================
+// ================== METAS ==================
 app.get('/api/metas', async (req, res) => {
   try {
     const { mes } = req.query;
@@ -110,7 +117,6 @@ app.get('/api/metas', async (req, res) => {
         .json({ error: 'Parâmetro mes é obrigatório (YYYY-MM-01)' });
     }
 
-    // 1️⃣ Buscar metas no Supabase
     const url =
       `${process.env.SUPABASE_URL}/rest/v1/metas_mensais` +
       `?select=mes,tipo,meta_valor,realizado,percentual,faltou` +
@@ -124,11 +130,9 @@ app.get('/api/metas', async (req, res) => {
       },
     });
 
-    // 2️⃣ Buscar faturamento real da Omie
     const faturamentoRealizado = await obterFaturamentoOmie(mes);
 
-    // 3️⃣ Ajustar SOMENTE a meta de faturamento
-    const metasAjustadas = metas.map((meta) => {
+    const metasAjustadas = (metas || []).map((meta) => {
       if (meta.tipo === 'FATURAMENTO_TOTAL') {
         const realizado = faturamentoRealizado;
         const percentual =
@@ -148,15 +152,16 @@ app.get('/api/metas', async (req, res) => {
     });
 
     res.json(metasAjustadas);
-  } catch (e) {
+  } catch (err) {
+    console.error('Erro metas:', err.message);
     res.status(500).json({
       error: 'Erro Supabase',
-      detalhe: e.response?.data || e.message,
+      detalhe: err.response?.data || err.message,
     });
   }
 });
 
 // ================== START ==================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`API rodando na porta ${PORT}`);
 });
