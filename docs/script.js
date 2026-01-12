@@ -1,4 +1,4 @@
-const API_BASE = 'https://omievendasbackend-fq5ko81a.b4a.run/'
+const API_BASE = 'https://omievendasbackend-fq5ko81a.b4a.run'
 
 
 const API_VENDAS = `${API_BASE}/api/vendas`;
