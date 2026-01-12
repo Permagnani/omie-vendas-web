@@ -1,5 +1,6 @@
-const API_VENDAS = 'https://omie-vendas-web-production.up.railway.app/api/vendas';
-const API_METAS = 'https://omie-vendas-web-production.up.railway.app/api/metas';
+const API_VENDAS = 'https://omie-vendas-web-production.onrender.com/api/vendas';
+const API_METAS  = 'https://omie-vendas-web-production.onrender.com/api/metas';
+
 
 // ===== DATA =====
 function getMesAtualISO() {
