@@ -1,5 +1,8 @@
-const API_VENDAS = 'https://omie-vendas-web-production.onrender.com/api/vendas';
-const API_METAS  = 'https://omie-vendas-web-production.onrender.com/api/metas';
+const API_BASE = 'https://omievendasbackend-vw3xh95z.b4a.run';
+
+const API_VENDAS = `${API_BASE}/api/vendas`;
+const API_METAS  = `${API_BASE}/api/metas`;
+
 
 
 // ===== DATA =====
