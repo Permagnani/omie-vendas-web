@@ -1,4 +1,4 @@
-const API_BASE = 'https://omievendasbackend-xacir6ta.b4a.run/'
+const API_BASE = 'https://omievendasbackend-xacir6ta.b4a.run'
 
 
 const API_VENDAS = `${API_BASE}/api/vendas`;
